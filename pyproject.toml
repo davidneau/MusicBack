@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "music"
+version = "0.1.0"
+description = "Application Flask déployée sur Render"
+authors = ["Moi <moi@example.com>"]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "3.12.4"
+Flask = "^3.0"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
