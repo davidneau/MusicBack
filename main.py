@@ -126,7 +126,7 @@ def insertMusic():
     else:
         response = (
             ClientAPI.table("StatMusic3")
-            .update({"views": 3})
+            .update({"views": response.data[0]["views"] + 1})
             .eq("id_yt", id_yt)
             .execute()
         )
@@ -215,6 +215,23 @@ def insertDataVideoIntoDBB(videos):
                     #app.cur.execute(f"INSERT INTO public.\"StatMusic3\" (id_yt, views, \"Title\", \"Artist\", \"Album\") VALUES ('{video["id"]}', 0, '{video["title"].replace("'", '"')}', '{video["artist"].replace("'", '"')}', '{video["album"].replace("'", '"')}')")
                     #app.conn.commit()
                     print("video registered")
+
+
+def updateIncrementViews(table, col, id_yt):
+    response = (
+        ClientAPI.table(table)
+        .select({col})
+        .eq("id_yt", id_yt)
+        .execute()
+    )        
+    value = response.data[col]
+    response2 = (
+        ClientAPI.table(table)
+        .update({"noViews": value + 1})
+        .eq("id_yt", id_yt)
+        .execute()
+    )
+
 
 # Lancer l'application
 if __name__ == "__main__":

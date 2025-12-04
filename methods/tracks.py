@@ -80,25 +80,13 @@ def listenMusica(id_yt, click, title, artist, user, app, ClientAPI):
         #app.conn.commit()
     else:
         print("increment noViews")
-        response = (
-            ClientAPI.table("UserMusic")
-            .update({"noViews": 3})
-            .eq("id_yt", id_yt)
-            .eq("User", user)
-            .execute()
-        )        
+        updateIncrement("UserMusic", "noViews", id_yt, user, ClientAPI)
         #app.cur.execute(f"UPDATE public.\"UserMusic\" SET \"noViews\" = \"noViews\" + 1 WHERE id_yt='{id_yt}' AND \"User\"='{user}'")
         #app.conn.commit()
     
     if click:
         print("increment noClicked")
-        response = (
-            ClientAPI.table("UserMusic")
-            .update({"noClicked": 3})
-            .eq("id_yt", id_yt)
-            .eq("User", user)
-            .execute()
-        )     
+        updateIncrement("UserMusic", "noClicked", id_yt, user, ClientAPI)
         #app.cur.execute(f"UPDATE public.\"UserMusic\" SET \"noClicked\" = \"noClicked\" + 1 WHERE id_yt='{id_yt}' AND \"User\"='{user}'")
         #app.conn.commit()
     return 'OK'
@@ -128,3 +116,23 @@ def loadReplayRoute(user, ClientAPI):
         .execute()
     )
     return response.data
+
+def updateIncrement(table, col, id_yt, user, ClientAPI):
+    response = (
+        ClientAPI.table("UserMusic")
+        .select({col})
+        .eq("User", user)
+        .eq("id_yt", id_yt)
+        .execute()
+    )        
+    print(response.data)
+    value = response.data[0][col]
+    print(id_yt)
+    print(user)
+    response2 = (
+        ClientAPI.table("UserMusic")
+        .update({col: value + 1})
+        .eq("id_yt", id_yt)
+        .eq("User", user)
+        .execute()
+    )
