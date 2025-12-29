@@ -22,6 +22,8 @@ def getSimilarTrack(searchStr):
 
     artist, title, album = getTrackSearchDeezer(searchStr)
 
+    print("resultGetSimTrack :", album)
+
     payloadGS = {
         'api_key': API_KEY,
         'method': 'track.getSimilar',

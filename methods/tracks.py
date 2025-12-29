@@ -109,7 +109,7 @@ def loadHistoriqueRoute(user, ClientAPI):
         .order("created_at", desc=True)
         .execute()
     )
-    [print(i) for i in response.data]
+    [print(i) for i in response.data[:20]]
     return response.data
 
 def loadReplayRoute(user, ClientAPI):

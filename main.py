@@ -88,12 +88,12 @@ def getSimilarTrackRoute(search):
                     .execute()
             )
         listenMusic(YTmusique["id_yt"] , False, Title, Artist)
-        return YTmusique["id_yt"]
+        return {"yt_id" : YTmusique["id_yt"], "Title" : Title, "Artist" : Artist}
     else:
         print("already in BDD")
         print(response.data)
         listenMusic(response.data[0]["id_yt"] , False, Title, Artist)
-        return response.data[0]["id_yt"]
+        return {"yt_id" : response.data[0]["id_yt"], "Title" : Title, "Artist" : Artist}
 
 @app.route('/loadHistorique/')
 @jwt_required()
@@ -262,10 +262,12 @@ def getMusic(searchStr):
 @app.route('/searchMusic/<searchStr>')
 @jwt_required()
 def searchMusic(searchStr):
+    t0 = time.time()
     musics = getTrackSearchDeezerAll(searchStr)
     resultMusic = []
     musicToRegistered = []
     for music in musics:
+        print(time.time() - t0)
         print("title:", music["Title"])
         print("artist:", music["Artist"])
         response = (
