@@ -55,7 +55,8 @@ def login():
         .execute()
     )
     users = response.data
-    logging.info("response", response.data)
+    logging.info("response")
+    logging.info(response.data)
     #users = app.cur.fetchall()
     if (len(users) != 0):
         logging.info(users[0])
@@ -150,7 +151,6 @@ def insertMusic():
     if "img" in payload:
         img = payload["img"]
 
-    logging.info(f"SELECT * FROM public.\"StatMusic3\" WHERE id_yt='{id_yt}'")
     #app.cur.execute(f"SELECT * FROM public.\"StatMusic3\" WHERE id_yt='{id_yt}'")
     if (len(response.data)== 0):
         logging.info(id_yt)
@@ -272,8 +272,10 @@ def searchMusic(searchStr):
     resultMusic = []
     musicToRegistered = []
     for music in musics:
-        logging.info("title:", music["Title"])
-        logging.info("artist:", music["Artist"])
+        logging.info("title:")
+        logging.info(music["Title"])
+        logging.info("artist:")
+        logging.info(music["Artist"])
         response = (
             ClientAPI.table("StatMusic3")
             .select("*")
@@ -324,7 +326,8 @@ def insertDataVideoIntoDBB(videos):
     t0 = time.time()
     for video in videos:
         logging.info(video)
-        logging.info("time", str(time.time() - t0))
+        logging.info("time")
+        logging.info(str(time.time() - t0))
         time.sleep(1)
         
         try:
