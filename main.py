@@ -15,6 +15,12 @@ import os
 from supabase import create_client
 from ytmusicapi import YTMusic
 import time
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    fortmat="%(asctime)s - %(levelname)s -%(message)s"
+)
 
 yt = YTMusic()  # pas d'auth nécessaire pour juste chercher
 
