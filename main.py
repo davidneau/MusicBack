@@ -330,11 +330,7 @@ def insertDataVideoIntoDBB(videos):
         logging.info(str(time.time() - t0))
         time.sleep(1)
         
-        try:
-            YTmusique = search1Music(video["Title"] + " - " + video["Artist"])
-        except Exception as e:
-            logging.info(e)
-            continue
+        YTmusique = search1Music(video["Title"] + " - " + video["Artist"])
         
         response = (
             ClientAPI.table("StatMusic3")
@@ -345,12 +341,15 @@ def insertDataVideoIntoDBB(videos):
         ) 
 
         if (len(response.data)) == 0:
+            try:
                 response = (
                     ClientAPI.table("StatMusic3")
                     .insert({"id_yt": YTmusique["id_yt"], "views" : 0, "Title": video["Title"], "Artist": video["Artist"], "Album": video["Album"], "Image": YTmusique["img"]})
                     .execute()
                 )
                 logging.info("video registered")
+            except Exception as e:
+                logging.info(e)
 
 
 def updateIncrementViews(table, col, id_yt):
