@@ -318,7 +318,7 @@ def insertDataVideoIntoDBB(videos):
     t0 = time.time()
     for video in videos:
         print(video)
-        print(time.time() - t0)
+        print("time", str(time.time() - t0))
         time.sleep(1)
         
         YTmusique = search1Music(video["Title"] + " - " + video["Artist"])
