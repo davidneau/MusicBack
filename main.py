@@ -19,7 +19,7 @@ import logging
 
 logging.basicConfig(
     level=logging.INFO,
-    fortmat="%(asctime)s - %(levelname)s -%(message)s"
+    format="%(asctime)s - %(levelname)s -%(message)s"
 )
 
 yt = YTMusic()  # pas d'auth nécessaire pour juste chercher
@@ -55,10 +55,10 @@ def login():
         .execute()
     )
     users = response.data
-    print("response", response.data)
+    logging.info("response", response.data)
     #users = app.cur.fetchall()
     if (len(users) != 0):
-        print(users[0])
+        logging.info(users[0])
         if bcrypt.check_password_hash(users[0]["password"], password):
             token = create_access_token(identity=identifiant)
             return jsonify(access_token=token), 200
@@ -73,7 +73,7 @@ def profile():
 @app.route('/getSimilarTrack/<string:search>')
 @jwt_required()
 def getSimilarTrackRoute(search):
-    print(search)
+    logging.info(search)
     
     similarTrack = getSimilarTrack(search)
     Title = similarTrack["Title"]
@@ -96,8 +96,8 @@ def getSimilarTrackRoute(search):
         listenMusic(YTmusique["id_yt"] , False, Title, Artist)
         return {"yt_id" : YTmusique["id_yt"], "Title" : Title, "Artist" : Artist}
     else:
-        print("already in BDD")
-        print(response.data)
+        logging.info("already in BDD")
+        logging.info(response.data)
         listenMusic(response.data[0]["id_yt"] , False, Title, Artist)
         return {"yt_id" : response.data[0]["id_yt"], "Title" : Title, "Artist" : Artist}
 
@@ -129,9 +129,9 @@ def insertMusic2(id_yt, title, artist, album, img):
 @app.route('/insertMusic/', methods = ['POST'])
 @jwt_required()
 def insertMusic():
-    print(request.data)
+    logging.info(request.data)
     payload = json.loads(request.data.decode('utf-8'))
-    print(payload)
+    logging.info(payload)
     if "title" in payload:
         searchStr = payload["title"] + "-" + payload["artist"]
     else:
@@ -150,13 +150,13 @@ def insertMusic():
     if "img" in payload:
         img = payload["img"]
 
-    print(f"SELECT * FROM public.\"StatMusic3\" WHERE id_yt='{id_yt}'")
+    logging.info(f"SELECT * FROM public.\"StatMusic3\" WHERE id_yt='{id_yt}'")
     #app.cur.execute(f"SELECT * FROM public.\"StatMusic3\" WHERE id_yt='{id_yt}'")
     if (len(response.data)== 0):
-        print(id_yt)
-        print(title)
-        print(artist)
-        print(album)
+        logging.info(id_yt)
+        logging.info(title)
+        logging.info(artist)
+        logging.info(album)
         
         response = (
             ClientAPI.table("StatMusic3")
@@ -232,7 +232,7 @@ def searchYT(searchStr, first=False):
             videoDict["artist"] = artist
             videoDict["album"] = album
         except Exception as ex:
-            print(ex)
+            logging.info(ex)
         videos.append(videoDict)
     
     #thread = threading.Thread(target=insertDataVideoIntoDBB, args=(videos,))
@@ -250,8 +250,8 @@ def search1Music(searchStr):
 def getMusic(searchStr):
     Artist = searchStr.split("-")[0]
     Title = searchStr.split("-")[1]
-    print(Artist)
-    print(Title)
+    logging.info(Artist)
+    logging.info(Title)
     response = (
             ClientAPI.table("StatMusic3")
             .select("*")
@@ -272,8 +272,8 @@ def searchMusic(searchStr):
     resultMusic = []
     musicToRegistered = []
     for music in musics:
-        print("title:", music["Title"])
-        print("artist:", music["Artist"])
+        logging.info("title:", music["Title"])
+        logging.info("artist:", music["Artist"])
         response = (
             ClientAPI.table("StatMusic3")
             .select("*")
@@ -285,8 +285,8 @@ def searchMusic(searchStr):
             musicToRegistered.append(music)
             resultMusic.append(prepaMusic(music, withYTID=False))
         else:
-            print("already in BDD")
-            print(response.data)
+            logging.info("already in BDD")
+            logging.info(response.data)
             resultMusic.append(prepaMusic(response.data[0]))
     
     thread = threading.Thread(target=insertDataVideoIntoDBB, args=(musicToRegistered,))
@@ -295,8 +295,8 @@ def searchMusic(searchStr):
     return resultMusic
     
 def prepaMusic(music, YTmusique={}, withYTID=True):
-    print(music)
-    print(YTmusique)
+    logging.info(music)
+    logging.info(YTmusique)
 
     videoDict = {}
 
@@ -323,14 +323,14 @@ def prepaMusic(music, YTmusique={}, withYTID=True):
 def insertDataVideoIntoDBB(videos):
     t0 = time.time()
     for video in videos:
-        print(video)
-        print("time", str(time.time() - t0))
+        logging.info(video)
+        logging.info("time", str(time.time() - t0))
         time.sleep(1)
         
         try:
             YTmusique = search1Music(video["Title"] + " - " + video["Artist"])
         except Exception as e:
-            print(e)
+            logging.info(e)
             continue
         
         response = (
@@ -347,7 +347,7 @@ def insertDataVideoIntoDBB(videos):
                     .insert({"id_yt": YTmusique["id_yt"], "views" : 0, "Title": video["Title"], "Artist": video["Artist"], "Album": video["Album"], "Image": YTmusique["img"]})
                     .execute()
                 )
-                print("video registered")
+                logging.info("video registered")
 
 
 def updateIncrementViews(table, col, id_yt):
