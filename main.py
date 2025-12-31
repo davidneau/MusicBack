@@ -252,6 +252,8 @@ def getMusic(searchStr):
     Title = searchStr.split("-")[1]
     logging.info(Artist)
     logging.info(Title)
+    print(Artist)
+    print(Title)
     response = (
             ClientAPI.table("StatMusic3")
             .select("*")
