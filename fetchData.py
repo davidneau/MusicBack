@@ -29,6 +29,7 @@ def getSimilarTrack(searchStr):
         'method': 'track.getSimilar',
         'track': title,
         'artist': artist,
+        "autocorrect": 1,
         'format': 'json'
     }
 
