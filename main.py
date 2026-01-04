@@ -325,6 +325,7 @@ def prepaMusic(music, YTmusique={}, withYTID=True):
 def insertDataVideoIntoDBB(videos):
     t0 = time.time()
     for video in videos:
+        logging.info("-----------------------")
         logging.info(video)
         logging.info("time")
         logging.info(str(time.time() - t0))
@@ -350,6 +351,7 @@ def insertDataVideoIntoDBB(videos):
                 logging.info("video registered")
             except Exception as e:
                 logging.info(e)
+    logging.info("-----------------------")
 
 
 def updateIncrementViews(table, col, id_yt):
