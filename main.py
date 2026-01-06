@@ -339,7 +339,7 @@ def insertDataVideoIntoDBB(videos):
             .eq("Title", video["Title"])
             .eq("Artist", video["Artist"])
             .execute()
-        ) 
+        )
  
         if (len(response.data)) == 0:
             try: 
