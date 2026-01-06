@@ -342,7 +342,7 @@ def insertDataVideoIntoDBB(videos):
         ) 
  
         if (len(response.data)) == 0:
-            try:
+            try: 
                 response = (
                     ClientAPI.table("StatMusic3")
                     .insert({"id_yt": YTmusique["id_yt"], "views" : 0, "Title": video["Title"], "Artist": video["Artist"], "Album": video["Album"], "Image": YTmusique["img"]})
