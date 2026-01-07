@@ -4,6 +4,7 @@ from flask_cors import CORS
 import json
 import threading
 import psycopg2
+import requests
 import os
 from methods.tracks import getTrackSearchDeezer, getTrackSearchDeezerAll, listenMusica, loadHistoriqueRoute, loadReplayRoute, normaliser_titre
 from googleapiclient.discovery import build
@@ -16,6 +17,7 @@ from supabase import create_client
 from ytmusicapi import YTMusic
 import time
 import logging
+from urllib.parse import unquote
 
 logging.basicConfig(
     level=logging.INFO,
@@ -248,8 +250,8 @@ def search1Music(searchStr):
 @app.route('/getMusic/<searchStr>')
 @jwt_required()
 def getMusic(searchStr):
-    Artist = searchStr.split("-")[0]
-    Title = searchStr.split("-")[1]
+    Artist = unquote(searchStr.split("(sep)")[0])
+    Title = unquote(searchStr.split("(sep)")[1])
     logging.info(Artist)
     logging.info(Title)
     print(Artist)
@@ -267,6 +269,20 @@ def getMusic(searchStr):
     else:
         return "Not in BDD"
 
+@app.route('/getLyrics/<searchStr>')
+@jwt_required()
+def getLyrics(searchStr):
+    logging.info("get Lyrics")
+    Artist = unquote(searchStr.split("(sep)")[0])
+    Title = unquote(searchStr.split("(sep)")[1])
+    logging.info(Artist)
+    logging.info(Title)
+    print(Artist)
+    print(Title)
+    response = requests.get("https://api.lyrics.ovh/v1/" + Artist + "/" + Title)
+    print(json.loads(response.text))
+    return json.loads(response.text)["lyrics"]
+    
 @app.route('/searchMusic/<searchStr>')
 @jwt_required()
 def searchMusic(searchStr):
@@ -297,6 +313,7 @@ def searchMusic(searchStr):
     thread = threading.Thread(target=insertDataVideoIntoDBB, args=(musicToRegistered,))
     thread.start()
     
+    logging.info(resultMusic)
     return normaliserLesTitres(resultMusic)
     
 def prepaMusic(music, YTmusique={}, withYTID=True):
