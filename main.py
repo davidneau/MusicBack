@@ -9,7 +9,7 @@ import os
 from methods.tracks import getTrackSearchDeezer, getTrackSearchDeezerAll, listenMusica, loadHistoriqueRoute, loadReplayRoute, normaliser_titre
 from googleapiclient.discovery import build
 from flask import Flask, request, jsonify
-from flask_bcrypt import Bcrypt
+import bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from datetime import timedelta
 import os
@@ -30,7 +30,6 @@ app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = 'super-secret-key'
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=15)
 
-bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
 # Activer CORS pour toutes les routes et pour toutes les origines
@@ -59,10 +58,10 @@ def login():
     users = response.data
     logging.info("response")
     logging.info(response.data)
-    #users = app.cur.fetchall()
+
     if (len(users) != 0):
         logging.info(users[0])
-        if bcrypt.check_password_hash(users[0]["password"], password):
+        if bcrypt.checkpw(password.encode("utf-8"), users[0]["password"].encode("utf-8")) :
             token = create_access_token(identity=identifiant)
             return jsonify(access_token=token), 200
     return jsonify(msg="Invalid credentials"), 401
@@ -72,6 +71,24 @@ def login():
 def profile():
     current_user = get_jwt_identity()
     return jsonify(user=current_user), 200
+
+@app.post('/signIn')
+@jwt_required()
+def signIn():
+    data = request.get_json()
+    identifiant = data.get('identifiant')
+    password = data.get('password')
+    password_bytes = password.encode("utf-8")
+    hashed_password = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
+
+    print(hashed_password)
+
+    response = (
+        ClientAPI.table("Users")
+        .insert({"identifiant" : identifiant, "password": hashed_password.decode("utf-8")})
+        .execute()
+    )
+    return "OK", 200
 
 @app.route('/getSimilarTrack/<string:search>')
 @jwt_required()
@@ -280,8 +297,11 @@ def getLyrics(searchStr):
     print(Artist)
     print(Title)
     response = requests.get("https://api.lyrics.ovh/v1/" + Artist + "/" + Title)
-    print(json.loads(response.text))
-    return json.loads(response.text)["lyrics"]
+    print("response", response)
+    if "error" in response or response.status_code != 200:
+        return "lyrics not found"
+    else:
+        return json.loads(response.text)["lyrics"]
     
 @app.route('/searchMusic/<searchStr>')
 @jwt_required()
@@ -300,7 +320,7 @@ def searchMusic(searchStr):
             .ilike("Title", music["Title"])
             .ilike("Artist", music["Artist"])
             .execute()
-        )      
+        )
         if len(response.data) == 0:
             logging.info("not in BDD")
             musicToRegistered.append(music)
