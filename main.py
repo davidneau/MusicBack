@@ -264,11 +264,11 @@ def search1Music(searchStr):
     results = yt.search(searchStr, filter="songs", limit=10)
     return {"id_yt": results[0].get("videoId"), "img": results[0]["thumbnails"][0].get("url")}
 
-@app.route('/getMusic/<searchStr>')
+@app.route('/getMusic')
 @jwt_required()
-def getMusic(searchStr):
-    Artist = unquote(searchStr.split("(sep)")[0])
-    Title = unquote(searchStr.split("(sep)")[1])
+def getMusic():
+    Artist = request.args.get("artist")
+    Title = request.args.get("title")
     logging.info(Artist)
     logging.info(Title)
     print(Artist)
@@ -285,18 +285,23 @@ def getMusic(searchStr):
         return response.data[0]    
     else:
         return "Not in BDD"
+import re
+import urllib
 
-@app.route('/getLyrics/<searchStr>')
+def normalize(s):
+    s = s.replace("/", " ")
+    s = re.sub(r"\s+", " ", s).strip()
+    return urllib.parse.quote(s)
+
+@app.route('/getLyrics')
 @jwt_required()
-def getLyrics(searchStr):
+def getLyrics():
     logging.info("get Lyrics")
-    Artist = unquote(searchStr.split("(sep)")[0])
-    Title = unquote(searchStr.split("(sep)")[1])
+    Artist = normalize(request.args.get("artist"))
+    Title = normalize(request.args.get("title"))
     logging.info(Artist)
     logging.info(Title)
-    print(Artist)
-    print(Title)
-    response = requests.get("https://api.lyrics.ovh/v1/" + Artist + "/" + Title)
+    response = requests.get(f"https://api.lyrics.ovh/v1/{Artist}/{Title}")
     print("response", response)
     if "error" in response or response.status_code != 200:
         return "lyrics not found"
