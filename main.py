@@ -35,7 +35,7 @@ jwt = JWTManager(app)
 # Activer CORS pour toutes les routes et pour toutes les origines
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-#DATABASE_URL = "postgres://postgres:Dragon-49@db.abcdefghijklmnopqrst.supabase.co:5432/postgres"
+youtube = build("youtube", "v3", developerKey='AIzaSyA8apjRRfjCHmu6M_4q_r3kUbnO_qJ7xfk')
 
 DATABASE_URL = "https://qtkheteiebuzzedvlrtn.supabase.co"
 API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF0a2hldGVpZWJ1enplZHZscnRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzMzU3MTIsImV4cCI6MjA3OTkxMTcxMn0.vp-JoA-6T-kpOahwI__SwKXVUyaxF82LPfnyQA7ZGy8"
@@ -120,6 +120,103 @@ def getSimilarTrackRoute(search):
         logging.info(response.data)
         listenMusic(response.data[0]["id_yt"] , False, Title, Artist)
         return {"yt_id" : response.data[0]["id_yt"], "Title" : Title, "Artist" : Artist}
+
+
+@app.post('/createPlaylist')
+@jwt_required()
+def createPlaylist():
+    current_user = get_jwt_identity()
+    logging.info(f"fetch playlist from {current_user}")
+    response = (
+            ClientAPI.table("Users")
+            .select("Playlist")
+            .eq("identifiant", current_user)
+            .execute()
+    )
+    json = response.data[0]
+    logging.info(f"playlists: {json}")
+    data = request.get_json()
+    logging.info(f"id playlist {data["playlistID"]}")
+    if data["fromYT"]:
+        videos_id = getVideosIdFromPlaylistYT(data["playlistID"])
+        name = data["name"]
+        json[name] = videos_id
+        response2 = (
+            ClientAPI.table("Users")
+            .update({"Playlist": json})
+            .eq("identifiant", current_user)
+            .execute()
+        )
+    return "OK", 200
+
+
+@app.post('/getPlaylist/<playlistName>')
+@jwt_required()
+def getPlaylist(playlistName):
+    result_list = []
+    current_user = get_jwt_identity()
+    response = (
+            ClientAPI.table("Users")
+            .select("Playlist")
+            .eq("identifiant", current_user)
+            .execute()
+    )
+    logging.info(f"playlist of {current_user} : {response.data[0]["Playlist"]}")
+    i = 1
+    for music in response.data[0]["Playlist"][playlistName][:3]:
+        jsonMusic = prepaMusicPlaylist(music)
+        jsonMusic['index'] = i
+        i += 1
+        result_list.append(jsonMusic)
+    return result_list, 200
+
+def getVideosIdFromPlaylistYT(playlist_id):
+    video_ids = []
+    request = youtube.playlistItems().list(
+        part="contentDetails",
+        playlistId=playlist_id,
+        maxResults=50
+    )
+
+    while request:
+        response = request.execute()
+
+        for item in response.get("items", []):
+            video_id = item.get("contentDetails", {}).get("videoId")
+            if video_id:
+                video_ids.append(video_id)
+
+        request = youtube.playlistItems().list_next(
+            request, response
+        )
+
+    return video_ids
+
+def prepaMusicPlaylist(musicId):
+    response = (
+            ClientAPI.table("StatMusic3")
+            .select("*")
+            .eq("id_yt", musicId)
+            .execute()
+    )
+    if len(response.data) == 0:
+        request = youtube.videos().list(
+            part="snippet,contentDetails,statistics,status,player,topicDetails,recordingDetails,liveStreamingDetails,localizations",
+            id=musicId
+        )
+        responseYT = request.execute()
+        if not responseYT["items"]:
+            print("Video not found")
+        else:
+            snippet = responseYT["items"][0]["snippet"]
+            json = {
+                "Title": snippet["title"],
+                "img": snippet["thumbnails"]["default"]["url"],
+                "id": musicId
+            }
+            return json
+    else:
+        return response.data[0]
 
 @app.route('/loadHistorique/')
 @jwt_required()
@@ -214,7 +311,6 @@ def searchYT(searchStr, first=False):
     :param max_resultats: int - Nombre maximum de résultats
     :return: list - Liste de dicts contenant titre, id vidéo et URL
     """
-    youtube = build("youtube", "v3", developerKey='AIzaSyA8apjRRfjCHmu6M_4q_r3kUbnO_qJ7xfk')
     
     # Requête vers l'API
     requete_api = youtube.search().list(
@@ -301,12 +397,19 @@ def getLyrics():
     Title = normalize(request.args.get("title"))
     logging.info(Artist)
     logging.info(Title)
-    response = requests.get(f"https://api.lyrics.ovh/v1/{Artist}/{Title}")
-    print("response", response)
-    if "error" in response or response.status_code != 200:
-        return "lyrics not found"
+    logging.info(f"https://lrclib.net/api/get?artist_name={Artist}&track_name={Title}")
+    response = requests.get(f"https://lrclib.net/api/get?artist_name={Artist}&track_name={Title}")
+    print("response1", response)
+    if response.json()["name"] == "TrackNotFound" or response.status_code != 200:
+        logging.info(f"https://api.lyrics.ovh/v1/{Artist}/{Title}")
+        response = requests.get(f"https://api.lyrics.ovh/v1/{Artist}/{Title}")
+        print("response2", response)
+        if "error" in response or response.status_code != 200:
+            return "lyrics not found"
+        else:
+            return json.loads(response.text)["lyrics"]
     else:
-        return json.loads(response.text)["lyrics"]
+        return json.loads(response.text)["plainLyrics"]
     
 @app.route('/searchMusic/<searchStr>')
 @jwt_required()
