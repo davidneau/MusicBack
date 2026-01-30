@@ -18,6 +18,8 @@ from ytmusicapi import YTMusic
 import time
 import logging
 from urllib.parse import unquote
+import re
+import urllib
 
 logging.basicConfig(
     level=logging.INFO,
@@ -93,9 +95,14 @@ def signIn():
 @app.route('/getSimilarTrack/<string:search>')
 @jwt_required()
 def getSimilarTrackRoute(search):
-    logging.info(search)
+    logging.info("get Similar Tracks Route")
     
     similarTrack = getSimilarTrack(search)
+    
+    logging.info(similarTrack["Result"])
+    thread2 = threading.Thread(target=insertDataVideoIntoDBB, args=(similarTrack["Result"],"sugg",))
+    thread2.start()
+
     Title = similarTrack["Title"]
     Artist = similarTrack["Artist"]
     Album = similarTrack["Album"]
@@ -114,12 +121,12 @@ def getSimilarTrackRoute(search):
                     .execute()
             )
         listenMusic(YTmusique["id_yt"] , False, Title, Artist)
-        return {"yt_id" : YTmusique["id_yt"], "Title" : Title, "Artist" : Artist}
+        return {"yt_id" : YTmusique["id_yt"], "Title" : Title, "Artist" : Artist, "Result": similarTrack["Result"]}
     else:
         logging.info("already in BDD")
         logging.info(response.data)
         listenMusic(response.data[0]["id_yt"] , False, Title, Artist)
-        return {"yt_id" : response.data[0]["id_yt"], "Title" : Title, "Artist" : Artist}
+        return {"yt_id" : response.data[0]["id_yt"], "Title" : Title, "Artist" : Artist, "Result": similarTrack["Result"]}
 
 
 @app.post('/createPlaylist')
@@ -365,10 +372,6 @@ def search1Music(searchStr):
 def getMusic():
     Artist = request.args.get("artist")
     Title = request.args.get("title")
-    logging.info(Artist)
-    logging.info(Title)
-    print(Artist)
-    print(Title)
     response = (
             ClientAPI.table("StatMusic3")
             .select("*")
@@ -377,12 +380,10 @@ def getMusic():
             .execute()
         )  
     if len(response.data) != 0:
-        listenMusic(response.data[0]["id_yt"] , True, Title, Artist)
+        #listenMusic(response.data[0]["id_yt"] , True, Title, Artist)
         return response.data[0]    
     else:
         return "Not in BDD"
-import re
-import urllib
 
 def normalize(s):
     s = s.replace("/", " ")
@@ -467,22 +468,33 @@ def prepaMusic(music, YTmusique={}, withYTID=True):
     videoDict["album"] = music["Album"]
     return videoDict
 
-def insertDataVideoIntoDBB(videos):
+def insertDataVideoIntoDBB(videos, From="search"):
     t0 = time.time()
     for video in videos:
+        print("insert Data Video Into BDD", video)
         logging.info("-----------------------")
         logging.info(video)
         logging.info("time")
         logging.info(str(time.time() - t0))
         time.sleep(1)
         
-        YTmusique = search1Music(video["Title"] + " - " + video["Artist"])
+        if From == "search":
+            videoTitle= video["Title"]
+            videoArtist = video["Artist"]
+        else:
+            videoTitle= video["name"]
+            videoArtist = video["artist"]["name"]
+            
+        YTmusique = search1Music(videoTitle + " - " + videoArtist)
+            
+        if "Album" not in video:
+            video["Album"] = "NA"
         
         response = (
             ClientAPI.table("StatMusic3")
             .select("*")
-            .eq("Title", video["Title"])
-            .eq("Artist", video["Artist"])
+            .eq("Title", videoTitle)
+            .eq("Artist", videoArtist)
             .execute()
         )
  
@@ -490,7 +502,7 @@ def insertDataVideoIntoDBB(videos):
             try: 
                 response = (
                     ClientAPI.table("StatMusic3")
-                    .insert({"id_yt": YTmusique["id_yt"], "views" : 0, "Title": video["Title"], "Artist": video["Artist"], "Album": video["Album"], "Image": YTmusique["img"]})
+                    .insert({"id_yt": YTmusique["id_yt"], "views" : 0, "Title": videoTitle, "Artist": videoArtist, "Album": video["Album"], "Image": YTmusique["img"]})
                     .execute()
                 )
                 logging.info("video registered")

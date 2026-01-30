@@ -39,4 +39,4 @@ def getSimilarTrack(searchStr):
     choice = random.randint(0, len(r.json()["similartracks"]["track"]))
     logging.info(r.json()["similartracks"]["track"])
 
-    return {"Title": r.json()["similartracks"]["track"][choice]['name'], "Artist": r.json()["similartracks"]["track"][choice]['artist']["name"], "Album": album}
+    return {"Title": r.json()["similartracks"]["track"][choice]['name'], "Artist": r.json()["similartracks"]["track"][choice]['artist']["name"], "Album": album, "Result": r.json()["similartracks"]["track"]}
