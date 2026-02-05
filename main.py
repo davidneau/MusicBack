@@ -97,36 +97,61 @@ def signIn():
 def getSimilarTrackRoute(search):
     logging.info("get Similar Tracks Route")
     
-    similarTrack = getSimilarTrack(search)
+    try:
+        similarTrack = getSimilarTrack(search)
     
-    logging.info(similarTrack["Result"])
-    thread2 = threading.Thread(target=insertDataVideoIntoDBB, args=(similarTrack["Result"],"sugg",))
-    thread2.start()
+        #thread2 = threading.Thread(target=insertDataVideoIntoDBB, args=(similarTrack["Result"],"sugg",))
+        #thread2.start()
 
-    Title = similarTrack["Title"]
-    Artist = similarTrack["Artist"]
-    Album = similarTrack["Album"]
-    response = (
-            ClientAPI.table("StatMusic3")
-            .select("*")
-            .eq("Title", Title)
-            .eq("Artist", Artist)
-            .execute()
-        )  
-    if len(response.data) == 0:
-        YTmusique = search1Music(Title + " - " + Artist)
+        ResultList=[]
+        for music in similarTrack["Result"]:
+            print(music)
+            response = (
+                    ClientAPI.table("StatMusic3")
+                    .select("*")
+                    .eq("Title", music["name"])
+                    .eq("Artist", music["artist"]["name"])
+                    .execute()
+                )
+            if len(response.data) == 0:
+                music["Image"] = "https://upload.wikimedia.org/wikipedia/commons/9/97/Music_-_The_Noun_Project.svg"
+                ResultList.append(music)
+            else:
+                music["Image"] = response.data[0]["Image"]
+                music["id"] = response.data[0]["id_yt"]
+                ResultList.append(music)
+
+        Title = similarTrack["Title"]
+        Artist = similarTrack["Artist"]
+        Album = similarTrack["Album"]
         response = (
+                ClientAPI.table("StatMusic3")
+                .select("*")
+                .eq("Title", Title)
+                .eq("Artist", Artist)
+                .execute()
+            )  
+        if len(response.data) == 0:
+            
+            try:
+                YTmusique = search1Music(Title + " - " + Artist)
+
+                response = (
                     ClientAPI.table("StatMusic3")
                     .insert({"id_yt": YTmusique["id_yt"], "views" : 0, "Title": Title, "Artist":Artist, "Album": Album, "Image": YTmusique["img"]})
                     .execute()
-            )
-        listenMusic(YTmusique["id_yt"] , False, Title, Artist)
-        return {"yt_id" : YTmusique["id_yt"], "Title" : Title, "Artist" : Artist, "Result": similarTrack["Result"]}
-    else:
-        logging.info("already in BDD")
-        logging.info(response.data)
-        listenMusic(response.data[0]["id_yt"] , False, Title, Artist)
-        return {"yt_id" : response.data[0]["id_yt"], "Title" : Title, "Artist" : Artist, "Result": similarTrack["Result"]}
+                )
+                #listenMusic(YTmusique["id_yt"] , False, Title, Artist)
+                return {"yt_id" : YTmusique["id_yt"], "Title" : Title, "Artist" : Artist, "Result": ResultList}
+            except:
+                pass
+        else:
+            logging.info("already in BDD")
+            logging.info(response.data)
+            #listenMusic(response.data[0]["id_yt"] , False, Title, Artist)
+            return {"yt_id" : response.data[0]["id_yt"], "Title" : Title, "Artist" : Artist, "Result": ResultList}
+    except Exception as Ex:
+        return {"Ex": Ex}
 
 
 @app.post('/createPlaylist')
@@ -364,7 +389,14 @@ def searchYT(searchStr, first=False):
 
 
 def search1Music(searchStr):
-    results = yt.search(searchStr, filter="songs", limit=10)
+    print("Recherche:", searchStr)
+    try:
+        results = yt.search(searchStr, filter="songs", limit=10)
+    except:
+        time.sleep(2)
+        results = yt.search(searchStr, filter="songs", limit=10)
+        
+    print("Résultat brut:", results)
     return {"id_yt": results[0].get("videoId"), "img": results[0]["thumbnails"][0].get("url")}
 
 @app.route('/getMusic')
@@ -380,9 +412,21 @@ def getMusic():
             .execute()
         )  
     if len(response.data) != 0:
-        #listenMusic(response.data[0]["id_yt"] , True, Title, Artist)
+        listenMusic(response.data[0]["id_yt"] , True, Title, Artist)
         return response.data[0]    
     else:
+        for i in range(100):
+            time.sleep(2)
+            response = (
+                ClientAPI.table("StatMusic3")
+                .select("*")
+                .eq("Title", Title)
+                .eq("Artist", Artist)
+                .execute()
+            )   
+            if len(response.data) != 0:
+                listenMusic(response.data[0]["id_yt"] , True, Title, Artist)
+                return response.data[0]
         return "Not in BDD"
 
 def normalize(s):
@@ -431,9 +475,11 @@ def searchMusic(searchStr):
             .execute()
         )
         if len(response.data) == 0:
+            music["id_yt"] = "none"
+            music["Image"] = "https://upload.wikimedia.org/wikipedia/commons/9/97/Music_-_The_Noun_Project.svg"
             logging.info("not in BDD")
             musicToRegistered.append(music)
-            resultMusic.append(prepaMusic(music, withYTID=False))
+            resultMusic.append(prepaMusic(music, withYTID=True))
         else:
             logging.info("already in BDD")
             logging.info(response.data)
@@ -485,8 +531,11 @@ def insertDataVideoIntoDBB(videos, From="search"):
             videoTitle= video["name"]
             videoArtist = video["artist"]["name"]
             
-        YTmusique = search1Music(videoTitle + " - " + videoArtist)
-            
+        try:
+            YTmusique = search1Music(videoTitle + " - " + videoArtist)
+        except:
+            continue
+
         if "Album" not in video:
             video["Album"] = "NA"
         
