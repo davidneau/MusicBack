@@ -1,23 +1,19 @@
-from flask import Flask, render_template, request
+from flask import Flask, request
 from fetchData import getSimilarTrack
 from flask_cors import CORS
 import json
 import threading
-import psycopg2
 import requests
-import os
 from methods.tracks import getTrackSearchDeezer, getTrackSearchDeezerAll, listenMusica, loadHistoriqueRoute, loadReplayRoute, normaliser_titre
 from googleapiclient.discovery import build
 from flask import Flask, request, jsonify
 import bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from datetime import timedelta
-import os
 from supabase import create_client
 from ytmusicapi import YTMusic
 import time
 import logging
-from urllib.parse import unquote
 import re
 import urllib
 
@@ -105,7 +101,7 @@ def getSimilarTrackRoute(search):
 
         ResultList=[]
         for music in similarTrack["Result"]:
-            print(music)
+            print("music", music)
             response = (
                     ClientAPI.table("StatMusic3")
                     .select("*")
