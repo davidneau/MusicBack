@@ -135,7 +135,7 @@ def getSimilarTrackRoute(search):
         ]
 
         print(len(missing_tracks))
-        choice = random.randint(0, len(existing.data))
+        choice = random.randint(0, len(existing.data) - 1)
         return {"music" : existing.data[choice], "Result": existing.data}
     except Exception as Ex:
         logging.info(f"exception : {Ex}")
