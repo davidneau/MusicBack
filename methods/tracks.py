@@ -45,37 +45,6 @@ def getTrackSearch(searchStr):
     print("artist :", artist)
     print("title :", title)
     return artist, title
-
-def getTrackSearchDeezer(searchStr):
-    searchStr = epuration(searchStr, "crochets")
-    searchStr = epuration(searchStr, "parentheses")
-    searchStr = searchStr.replace(":", "")
-    print("getTrackSearch searchStr: ", searchStr)
-
-
-    r = requests.get('https://api.deezer.com/search?q=' + searchStr)
-
-    artist = r.json()["data"][0]["artist"]["name"]
-    title = r.json()["data"][0]["title_short"]
-    album = r.json()["data"][0]["album"]["title"]
-
-    return artist, title, album
-
-def getTrackSearchDeezerAll(searchStr):
-    print("getTrackSearch searchStr: ", searchStr)
-    result = []
-    logging.info('https://api.deezer.com/search?q=' + searchStr)
-    r = requests.get(
-        "https://api.deezer.com/search",
-        params={"q": searchStr}
-    )
-    for music in r.json()["data"]:
-        title = music["title"]
-        artist = music["artist"]["name"]
-        album = music["album"]["title"]
-        result.append({"Title": title, "Artist": artist, "Album": album})
-    [print(i) for i in result]
-    return result
     
 def listenMusica(id_yt, click, title, artist, user, app, ClientAPI):
     response = (
@@ -100,12 +69,6 @@ def listenMusica(id_yt, click, title, artist, user, app, ClientAPI):
         print("increment noClicked")
         updateIncrement("UserMusic", "noClicked", id_yt, user, ClientAPI)
     return 'OK'
-
-def epuration(string, scenario):
-    if scenario == "parentheses":
-        return re.sub(r'\s*\(.*?\)', '', string)
-    if scenario == "crochets":
-        return re.sub(r'\s*\[.*?\]', '', string)
 
 def loadHistoriqueRoute(user, ClientAPI):
     print(user)
@@ -151,21 +114,11 @@ def updateIncrement(table, col, id_yt, user, ClientAPI):
 
 
 def normaliser_titre(titre: str) -> str:
-    # minuscules
-    titre = titre.lower()
-
-    # suppression des accents
-    titre = unicodedata.normalize("NFD", titre)
-    titre = "".join(c for c in titre if unicodedata.category(c) != "Mn")
-
-    # suppression des caractères spéciaux
-    titre = re.sub(r"[^a-z0-9\s]", "", titre)
+    # suppression des parenthèse
+    titre = re.sub(r'\([^)]*\)', '', titre).strip()
 
     # suppression des espaces multiples
     titre = re.sub(r"\s+", " ", titre).strip()
 
-    # gestion simple du pluriel (très basique)
-    if titre.endswith("s"):
-        titre = titre[:-1]
-
     return titre
+

@@ -4,7 +4,8 @@ from flask_cors import CORS
 import json
 import threading
 import requests
-from methods.tracks import getTrackSearchDeezer, getTrackSearchDeezerAll, listenMusica, loadHistoriqueRoute, loadReplayRoute, normaliser_titre
+from methods.tracks import listenMusica, loadHistoriqueRoute, loadReplayRoute, normaliser_titre
+from methods.deezer import getTrackSearchDeezer, getTrackSearchDeezerAll
 from googleapiclient.discovery import build
 from flask import Flask, request, jsonify
 import bcrypt
@@ -16,6 +17,7 @@ import time
 import logging
 import re
 import urllib
+import random
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,6 +41,8 @@ DATABASE_URL = "https://qtkheteiebuzzedvlrtn.supabase.co"
 API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF0a2hldGVpZWJ1enplZHZscnRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzMzU3MTIsImV4cCI6MjA3OTkxMTcxMn0.vp-JoA-6T-kpOahwI__SwKXVUyaxF82LPfnyQA7ZGy8"
 
 ClientAPI = create_client(DATABASE_URL, API_KEY)
+
+SuggestionMusics = []
 
 @app.post('/login')
 def login():
@@ -79,8 +83,6 @@ def signIn():
     password_bytes = password.encode("utf-8")
     hashed_password = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
 
-    print(hashed_password)
-
     response = (
         ClientAPI.table("Users")
         .insert({"identifiant" : identifiant, "password": hashed_password.decode("utf-8")})
@@ -91,63 +93,53 @@ def signIn():
 @app.route('/getSimilarTrack/<string:search>')
 @jwt_required()
 def getSimilarTrackRoute(search):
+    global SuggestionMusics
     logging.info("get Similar Tracks Route")
     
     try:
         similarTrack = getSimilarTrack(search)
-    
-        #thread2 = threading.Thread(target=insertDataVideoIntoDBB, args=(similarTrack["Result"],"sugg",))
-        #thread2.start()
+        
+        SuggestionMusics = similarTrack["Result"]
+        for i in SuggestionMusics:
+            i["Title"] = i["name"]
+            i["Artist"] = i["artist"]["name"]
 
-        ResultList=[]
-        for music in similarTrack["Result"]:
-            print("music", music)
-            response = (
-                    ClientAPI.table("StatMusic3")
-                    .select("*")
-                    .eq("Title", music["name"])
-                    .eq("Artist", music["artist"]["name"])
-                    .execute()
-                )
-            if len(response.data) == 0:
-                music["Image"] = "https://upload.wikimedia.org/wikipedia/commons/9/97/Music_-_The_Noun_Project.svg"
-                ResultList.append(music)
-            else:
-                music["Image"] = response.data[0]["Image"]
-                music["id"] = response.data[0]["id_yt"]
-                ResultList.append(music)
-
-        Title = similarTrack["Title"]
-        Artist = similarTrack["Artist"]
-        Album = similarTrack["Album"]
-        response = (
-                ClientAPI.table("StatMusic3")
-                .select("*")
-                .eq("Title", Title)
-                .eq("Artist", Artist)
-                .execute()
-            )  
-        if len(response.data) == 0:
-            
-            try:
-                YTmusique = search1Music(Title + " - " + Artist)
-
+        if similarTrack == "None":
+            if SuggestionMusics == []:
                 response = (
-                    ClientAPI.table("StatMusic3")
-                    .insert({"id_yt": YTmusique["id_yt"], "views" : 0, "Title": Title, "Artist":Artist, "Album": Album, "Image": YTmusique["img"]})
+                    ClientAPI.table("UserMusic")
+                    .select("*")
+                    .eq("User", get_jwt_identity())
                     .execute()
                 )
-                #listenMusic(YTmusique["id_yt"] , False, Title, Artist)
-                return {"yt_id" : YTmusique["id_yt"], "Title" : Title, "Artist" : Artist, "Result": ResultList}
-            except:
-                pass
-        else:
-            logging.info("already in BDD")
-            logging.info(response.data)
-            #listenMusic(response.data[0]["id_yt"] , False, Title, Artist)
-            return {"yt_id" : response.data[0]["id_yt"], "Title" : Title, "Artist" : Artist, "Result": ResultList}
+                choice = random.randint(0, len(response.data))
+                return {"music": response.data[choice], "Result": response.data}
+            else:
+                choice = random.randint(0, len(SuggestionMusics))
+                return {"music": SuggestionMusics[choice], "Result": SuggestionMusics}
+        
+
+        titleMusics = [normaliser_titre(i["Title"].lower()) for i in SuggestionMusics]
+        artistsMusics = [i["Artist"].lower() for i in SuggestionMusics]
+
+        existing = (
+            ClientAPI
+            .table("StatMusic3")
+            .select("*")
+            .in_("track_key", [artist.lower() + "|" + title.lower() for (title, artist) in zip(titleMusics,artistsMusics)])
+            .execute()
+        )
+        missing_tracks = [
+            track for track in SuggestionMusics
+            if track["Artist"].lower() + "|" + track["Title"].lower() not in [music["track_key"] for music in existing.data]
+        ]
+
+        print(len(missing_tracks))
+        choice = random.randint(0, len(existing.data))
+        return {"music" : existing.data[choice], "Result": existing.data}
     except Exception as Ex:
-        return {"Ex": Ex}
+        logging.info(f"exception : {Ex}")
+        return "500 error"
 
 
 @app.post('/createPlaylist')
@@ -234,7 +226,7 @@ def prepaMusicPlaylist(musicId):
         )
         responseYT = request.execute()
         if not responseYT["items"]:
-            print("Video not found")
+            logging.info("Video not found")
         else:
             snippet = responseYT["items"][0]["snippet"]
             json = {
@@ -378,22 +370,34 @@ def searchYT(searchStr, first=False):
             logging.info(ex)
         videos.append(videoDict)
     
-    #thread = threading.Thread(target=insertDataVideoIntoDBB, args=(videos,))
-    #thread.start()
+    thread = threading.Thread(target=insertDataVideoIntoDBB, args=(videos,))
+    thread.start()
 
     return videos
 
 
 def search1Music(searchStr):
-    print("Recherche:", searchStr)
+    #logging.info(f"Recherche YT: {searchStr}")
     try:
         results = yt.search(searchStr, filter="songs", limit=10)
     except:
         time.sleep(2)
         results = yt.search(searchStr, filter="songs", limit=10)
         
-    print("Résultat brut:", results)
-    return {"id_yt": results[0].get("videoId"), "img": results[0]["thumbnails"][0].get("url")}
+    try:
+        resultsClip = yt.search(searchStr + " Clip Video", filter="videos", limit=10)
+    except Exception as ex:
+        logging.info(f"ex : {ex}")
+        time.sleep(2)
+        resultsClip = yt.search(searchStr + " Clip Video", filter="videos", limit=10)
+    #logging.info(resultsClip[0])
+    clipId = "Not found"
+    if len(resultsClip)>0 and resultsClip[0]["title"].lower() in searchStr.lower():
+        logging.info(f"add {resultsClip[0]}")
+        clipId = resultsClip[0]["videoId"]
+    resultJSON = {"id_yt": results[0].get("videoId"), "img": results[0]["thumbnails"][0].get("url"), "clipId": clipId}
+    #logging.info(f"Trouvé: {resultJSON}")
+    return resultJSON
 
 @app.route('/getMusic')
 @jwt_required()
@@ -403,8 +407,8 @@ def getMusic():
     response = (
             ClientAPI.table("StatMusic3")
             .select("*")
-            .eq("Title", Title)
-            .eq("Artist", Artist)
+            .like("Title", Title)
+            .like("Artist", Artist)
             .execute()
         )  
     if len(response.data) != 0:
@@ -438,13 +442,20 @@ def getLyrics():
     Title = normalize(request.args.get("title"))
     logging.info(Artist)
     logging.info(Title)
-    logging.info(f"https://lrclib.net/api/get?artist_name={Artist}&track_name={Title}")
-    response = requests.get(f"https://lrclib.net/api/get?artist_name={Artist}&track_name={Title}")
-    print("response1", response)
+    try:
+        logging.info(f"https://lrclib.net/api/get?artist_name={Artist}&track_name={Title}")
+        response = requests.get(f"https://lrclib.net/api/get?artist_name={Artist}&track_name={Title}")
+    except:
+        logging.info(f"https://api.lyrics.ovh/v1/{Artist}/{Title}")
+        response = requests.get(f"https://api.lyrics.ovh/v1/{Artist}/{Title}")
+        if "error" in response or response.status_code != 200:
+            return "lyrics not found"
+        else:
+            return json.loads(response.text)["lyrics"]
+        
     if response.json()["name"] == "TrackNotFound" or response.status_code != 200:
         logging.info(f"https://api.lyrics.ovh/v1/{Artist}/{Title}")
         response = requests.get(f"https://api.lyrics.ovh/v1/{Artist}/{Title}")
-        print("response2", response)
         if "error" in response or response.status_code != 200:
             return "lyrics not found"
         else:
@@ -456,9 +467,23 @@ def getLyrics():
 @jwt_required()
 def searchMusic(searchStr):
     musics = getTrackSearchDeezerAll(searchStr)
-    resultMusic = []
-    musicToRegistered = []
-    for music in musics:
+    titleMusics = [music["Title"].lower() for music in musics]
+    artistsMusics = [music["Artist"].lower() for music in musics]
+    existing = (
+        ClientAPI
+        .table("StatMusic3")
+        .select("*")
+        .in_("track_key", [artist.lower() + "|" + title.lower() for (title, artist) in zip(titleMusics,artistsMusics)])
+        .execute()
+    )
+    missing_tracks = [
+        track for track in musics
+        if track["Artist"].lower() + "|" + track["Title"].lower() not in [music["track_key"] for music in existing.data]
+    ]
+    print('existing', [i["track_key"] for i in existing.data])
+    print('missing', missing_tracks)
+    """ for music in musics:
+        time.sleep(0.5)
         logging.info("title:")
         logging.info(music["Title"])
         logging.info("artist:")
@@ -466,7 +491,7 @@ def searchMusic(searchStr):
         response = (
             ClientAPI.table("StatMusic3")
             .select("*")
-            .ilike("Title", music["Title"])
+            .ilike("Title", normaliser_titre(music["Title"]))
             .ilike("Artist", music["Artist"])
             .execute()
         )
@@ -479,13 +504,17 @@ def searchMusic(searchStr):
         else:
             logging.info("already in BDD")
             logging.info(response.data)
-            resultMusic.append(prepaMusic(response.data[0]))
+            resultMusic.append(prepaMusic(response.data[0])) """
     
-    thread = threading.Thread(target=insertDataVideoIntoDBB, args=(musicToRegistered,))
-    thread.start()
+    print("mt", missing_tracks)
+    if len(missing_tracks)>0:
+        thread = threading.Thread(target=insertDataVideoIntoDBB2, args=(missing_tracks,))
+        thread.start()
     
-    logging.info(resultMusic)
-    return normaliserLesTitres(resultMusic)
+    ResultList = [prepaMusic(music, withYTID=False) for music in missing_tracks]
+    preparedMusicExisting = [prepaMusic(music) for music in existing.data]
+    ResultList.extend(preparedMusicExisting)
+    return ResultList
     
 def prepaMusic(music, YTmusique={}, withYTID=True):
     videoDict = {}
@@ -503,17 +532,44 @@ def prepaMusic(music, YTmusique={}, withYTID=True):
         videoDict["url"] = f"https://www.youtube.com/watch?v={video_id}"
         videoDict["id"] = video_id
 
-
+    if 'id_clip' in music and music["id_clip"] != "Not found" and music["id_clip"] != None:
+        videoDict["id_clip"] = music["id_clip"]
+    else:
+        videoDict["id_clip"] = "Not found"
     videoDict["titre"] = music["Artist"] + " - " + music["Title"]
     videoDict["title"] = music["Title"]
     videoDict["artist"] = music["Artist"]
     videoDict["album"] = music["Album"]
     return videoDict
 
+
+def insertDataVideoIntoDBB2(videos):
+    ResultVideos = []
+    for video in videos:
+        time.sleep(1)
+
+        try:
+            YTmusique = search1Music(video["Title"] + " - " + video["Artist"])
+        except Exception as ex:
+            logging.info(f"Exception recherche: {ex}")
+            continue
+
+        video["Title"] = normaliser_titre(video["Title"])
+        video["id_yt"] = YTmusique["id_yt"]
+        video["Image"] = YTmusique["img"]
+        video["id_clip"] = YTmusique["clipId"]
+
+        if video["id_yt"] not in [videor["id_yt"] for videor in ResultVideos]:
+            ResultVideos.append(video)
+    
+    ClientAPI.table("StatMusic3").upsert(ResultVideos).execute()
+
 def insertDataVideoIntoDBB(videos, From="search"):
+    if From == "Sugg":
+        time.sleep(5)
     t0 = time.time()
     for video in videos:
-        print("insert Data Video Into BDD", video)
+        logging.info("insert Data Video Into BDD", video)
         logging.info("-----------------------")
         logging.info(video)
         logging.info("time")
@@ -529,12 +585,20 @@ def insertDataVideoIntoDBB(videos, From="search"):
             
         try:
             YTmusique = search1Music(videoTitle + " - " + videoArtist)
-        except:
+        except Exception as ex:
+            logging.info(f"Exception recherche: {ex}")
             continue
 
         if "Album" not in video:
             video["Album"] = "NA"
-        
+
+
+        videoTitle = normaliser_titre(videoTitle)
+        videoTitle = videoTitle.replace("'", "''")
+
+        logging.info(videoTitle)
+        logging.info(videoArtist)
+
         response = (
             ClientAPI.table("StatMusic3")
             .select("*")
@@ -545,9 +609,21 @@ def insertDataVideoIntoDBB(videos, From="search"):
  
         if (len(response.data)) == 0:
             try: 
+                
+                response2 = (
+                    ClientAPI.table("StatMusic3")
+                    .select("*")
+                    .eq("id_yt", YTmusique["id_yt"])
+                    .execute()
+                )
+                if len(response2.data) != 0:
+                    ClientAPI.table("StatMusic3").delete().eq("id_yt", YTmusique["id_yt"]).execute()
+            
+                data = {"id_yt": YTmusique["id_yt"], "views" : 0, "Title": videoTitle, "Artist": videoArtist, "Album": video["Album"], "Image": YTmusique["img"], "id_clip": YTmusique["clipId"]}
+                logging.info(f"inserting : {data}")
                 response = (
                     ClientAPI.table("StatMusic3")
-                    .insert({"id_yt": YTmusique["id_yt"], "views" : 0, "Title": videoTitle, "Artist": videoArtist, "Album": video["Album"], "Image": YTmusique["img"]})
+                    .insert(data)
                     .execute()
                 )
                 logging.info("video registered")
@@ -573,17 +649,53 @@ def updateIncrementViews(table, col, id_yt):
 
 def normaliserLesTitres(liste):
     resultat = []
-    vus = set()
+    vus = []
 
     for item in liste:
-        titre_normalise = normaliser_titre(item["titre"])
-        if titre_normalise not in vus:
-            vus.add(titre_normalise)
+        item["title_normalize"] = normaliser_titre(item["title"])
+        if item["title_normalize"] not in vus:
+            vus.append(item["title_normalize"])
             resultat.append(item)
 
     return resultat
 
+def normaliser_tout_les_titres():
+    all_tracks = []
+    BATCH_SIZE = 1000  # nombre de lignes par requête
+    ind = 0
+
+    while True:
+
+        # Récupération d'un batch
+        response = (
+            ClientAPI
+            .table("StatMusic3")
+            .select("*")
+            .is_("id_clip", "null")
+            .limit(BATCH_SIZE)
+            .execute()
+        )
+        
+        batch = response.data
+        if not batch:
+            break  # plus de données
+
+        for music in batch:
+            ind += 1
+            print(ind)
+            try:
+                YTmusic = search1Music(music["Artist"] + " - " + music["Title"])
+            except:
+                continue
+
+            if (music["id_clip"] == "Not found" or music["id_clip"] == None) and YTmusic["clipId"] != "Not Found":
+                ClientAPI.table("StatMusic3").update({"id_clip": YTmusic["clipId"]}).eq("id_yt", music["id_yt"]).execute()
+            else:
+                ClientAPI.table("StatMusic3").update({"id_clip": "Not found"}).eq("id_yt", music["id_yt"]).execute()
+
 # Lancer l'application
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+    #normaliser_tout_les_titres()
+    
 
