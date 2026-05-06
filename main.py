@@ -99,6 +99,7 @@ def getSimilarTrackRoute(search):
     try:
         similarTrack = getSimilarTrack(search)
         
+        logging.info(similarTrack)
         SuggestionMusics = similarTrack["Result"]
         for i in SuggestionMusics:
             i["Title"] = i["name"]
@@ -122,6 +123,7 @@ def getSimilarTrackRoute(search):
         titleMusics = [normaliser_titre(i["Title"].lower()) for i in SuggestionMusics]
         artistsMusics = [i["Artist"].lower() for i in SuggestionMusics]
 
+        logging.info([artist.lower() + "|" + title.lower() for (title, artist) in zip(titleMusics,artistsMusics)])
         existing = (
             ClientAPI
             .table("StatMusic3")
@@ -134,9 +136,10 @@ def getSimilarTrackRoute(search):
             if track["Artist"].lower() + "|" + track["Title"].lower() not in [music["track_key"] for music in existing.data]
         ]
 
-        print(len(missing_tracks))
+        logging.info(len(missing_tracks))
+        logging.info(existing.data)
         choice = random.randint(0, len(existing.data) - 1)
-        return {"music" : existing.data[choice], "Result": existing.data}
+        return {"Result": existing.data}
     except Exception as Ex:
         logging.info(f"exception : {Ex}")
         return "500 error"
@@ -163,11 +166,71 @@ def createPlaylist():
         json[name] = videos_id
         response2 = (
             ClientAPI.table("Users")
-            .update({"Playlist": json})
+            .update(json)
             .eq("identifiant", current_user)
             .execute()
         )
     return "OK", 200
+
+
+@app.post('/createPlaylist2')
+@jwt_required()
+def createPlaylist2():
+    current_user = get_jwt_identity()
+    logging.info(f"fetch playlist from {current_user}")
+    response = (
+            ClientAPI.table("Users")
+            .select("Playlist")
+            .eq("identifiant", current_user)
+            .execute()
+    )
+    json = response.data[0]["Playlist"]
+    logging.info(f"Playlists: {json}")
+    
+    data = request.get_json()
+    logging.info(f"nom Playlist {data["nomPlaylist"]}")
+    name = data["nomPlaylist"]
+    
+    json[name] = []
+
+    (
+        ClientAPI.table("Users")
+        .update({"Playlist": json})
+        .eq("identifiant", current_user)
+        .execute()
+    )
+    return json, 200
+
+
+@app.post('/addSongToPlaylist')
+@jwt_required()
+def addSongToPlaylist():
+    current_user = get_jwt_identity()
+    logging.info(f"fetch playlist from {current_user}")
+    response = (
+            ClientAPI.table("Users")
+            .select("Playlist")
+            .eq("identifiant", current_user)
+            .execute()
+    )
+    json = response.data[0]["Playlist"]
+    logging.info(f"Playlists: {json}")
+    
+    data = request.get_json()
+    print(data)
+    logging.info(f"nom Playlist {data["nomPlaylist"]}")
+    name = data["nomPlaylist"]
+    videoId = data["videoID"]
+    
+    json[name].append(videoId)
+
+    (
+        ClientAPI.table("Users")
+        .update({"Playlist": json})
+        .eq("identifiant", current_user)
+        .execute()
+    )
+    return json, 200
 
 
 @app.post('/getPlaylist/<playlistName>')
@@ -183,12 +246,41 @@ def getPlaylist(playlistName):
     )
     logging.info(f"playlist of {current_user} : {response.data[0]["Playlist"]}")
     i = 1
-    for music in response.data[0]["Playlist"][playlistName][:3]:
-        jsonMusic = prepaMusicPlaylist(music)
-        jsonMusic['index'] = i
-        i += 1
-        result_list.append(jsonMusic)
-    return result_list, 200
+    try:
+        for music in response.data[0]["Playlist"][playlistName][:3]:
+            jsonMusic = prepaMusicPlaylist(music)
+            jsonMusic['index'] = i
+            i += 1
+            result_list.append(jsonMusic)
+        return result_list, 200
+    except:
+        return "Not found", 404
+
+
+@app.post('/getPlaylist2/')
+@jwt_required()
+def getPlaylist2():
+    current_user = get_jwt_identity()
+    response = (
+            ClientAPI.table("Users")
+            .select("Playlist")
+            .eq("identifiant", current_user)
+            .execute()
+    )
+    logging.info(f"playlist of {current_user} : {response.data[0]["Playlist"]}")
+    for pl in response.data[0]["Playlist"]:
+        list_music = []
+        for song_id in response.data[0]["Playlist"][pl]:
+            print(song_id)
+            responseSong = (
+                ClientAPI.table("StatMusic3")
+                .select("*")
+                .eq("id_yt", song_id)
+                .execute()
+            )
+            list_music.append(responseSong.data[0])
+        response.data[0]["Playlist"][pl] = list_music
+    return response.data[0], 200
 
 def getVideosIdFromPlaylistYT(playlist_id):
     video_ids = []
@@ -377,7 +469,7 @@ def searchYT(searchStr, first=False):
 
 
 def search1Music(searchStr):
-    #logging.info(f"Recherche YT: {searchStr}")
+    logging.info(f"Recherche YT: {searchStr}")
     try:
         results = yt.search(searchStr, filter="songs", limit=10)
     except:
@@ -390,7 +482,7 @@ def search1Music(searchStr):
         logging.info(f"ex : {ex}")
         time.sleep(2)
         resultsClip = yt.search(searchStr + " Clip Video", filter="videos", limit=10)
-    #logging.info(resultsClip[0])
+    logging.info(results[0]["title"] + "-" + results[0]["artists"][0]["name"])
     clipId = "Not found"
     if len(resultsClip)>0 and resultsClip[0]["title"].lower() in searchStr.lower():
         logging.info(f"add {resultsClip[0]}")
@@ -398,6 +490,30 @@ def search1Music(searchStr):
     resultJSON = {"id_yt": results[0].get("videoId"), "img": results[0]["thumbnails"][0].get("url"), "clipId": clipId}
     #logging.info(f"Trouvé: {resultJSON}")
     return resultJSON
+
+@app.route('/getMusicFromVideoID')
+@jwt_required()
+def getMusicFromVideoID():
+    Id = request.args.get("id")
+    response = (
+            ClientAPI.table("StatMusic3")
+            .select("*")
+            .like("id_yt", Id)
+            .execute()
+        )  
+    if len(response.data) != 0:
+        return response.data[0]
+    else:
+        response = (
+                ClientAPI.table("StatMusic3")
+                .select("*")
+                .like("id_clip", Id)
+                .execute()
+            )  
+        if len(response.data) != 0:
+            return response.data[0]
+        else:
+            return "not found"
 
 @app.route('/getMusic')
 @jwt_required()
@@ -695,6 +811,7 @@ def normaliser_tout_les_titres():
 
 # Lancer l'application
 if __name__ == "__main__":
+    #search1Music("nessa muse")
     app.run(host="0.0.0.0", port=5001)
     #normaliser_tout_les_titres()
     
