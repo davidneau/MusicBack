@@ -217,7 +217,7 @@ def addSongToPlaylist():
     logging.info(f"Playlists: {json}")
     
     data = request.get_json()
-    print(data)
+    logging.info(f"data {data}")
     logging.info(f"nom Playlist {data["nomPlaylist"]}")
     name = data["nomPlaylist"]
     videoId = data["videoID"]
@@ -275,7 +275,7 @@ def getPlaylist2():
             responseSong = (
                 ClientAPI.table("StatMusic3")
                 .select("*")
-                .eq("id_yt", song_id)
+                .or_(f"id_yt.eq.{song_id},id_clip.eq.{song_id}")
                 .execute()
             )
             list_music.append(responseSong.data[0])
