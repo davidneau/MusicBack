@@ -278,7 +278,8 @@ def getPlaylist2():
                 .or_(f"id_yt.eq.{song_id},id_clip.eq.{song_id}")
                 .execute()
             )
-            list_music.append(responseSong.data[0])
+            if len(responseSong.data) > 0:
+                list_music.append(responseSong.data[0])
         response.data[0]["Playlist"][pl] = list_music
     return response.data[0], 200
 
