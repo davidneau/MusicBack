@@ -74,7 +74,7 @@ def loadHistoriqueRoute(user, ClientAPI):
     print(user)
     response = (
         ClientAPI.table("UserMusic")
-        .select("*, StatMusic3(id_yt, Image, Album)")
+        .select("*, StatMusic3(id_yt, id_clip, Image, Album)")
         .eq("User", user)
         .order("created_at", desc=True)
         .execute()

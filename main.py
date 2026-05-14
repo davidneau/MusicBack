@@ -98,8 +98,13 @@ def getSimilarTrackRoute(search):
     
     try:
         similarTrack = getSimilarTrack(search)
-        
+        logging.info("z")
         logging.info(similarTrack)
+        logging.info(len(similarTrack))
+
+        if len(similarTrack["Result"]) == 0:
+            return similarTrack
+        
         SuggestionMusics = similarTrack["Result"]
         for i in SuggestionMusics:
             i["Title"] = i["name"]
@@ -269,19 +274,66 @@ def getPlaylist2():
     )
     logging.info(f"playlist of {current_user} : {response.data[0]["Playlist"]}")
     for pl in response.data[0]["Playlist"]:
-        list_music = []
-        for song_id in response.data[0]["Playlist"][pl]:
-            print(song_id)
-            responseSong = (
-                ClientAPI.table("StatMusic3")
-                .select("*")
-                .or_(f"id_yt.eq.{song_id},id_clip.eq.{song_id}")
-                .execute()
-            )
-            if len(responseSong.data) > 0:
-                list_music.append(responseSong.data[0])
-        response.data[0]["Playlist"][pl] = list_music
+        print("pl", response.data[0]["Playlist"][pl])
+        formatted_ids = "(" + ",".join(
+            f'"{music_id}"' for music_id in response.data[0]["Playlist"][pl]
+        ) + ")"
+        responseSong = (
+            ClientAPI.table("StatMusic3")
+            .select("*")
+            .or_(f"id_yt.in.{formatted_ids},id_clip.in.{formatted_ids}")
+            .execute()
+        )
+        response.data[0]["Playlist"][pl] = responseSong.data
     return response.data[0], 200
+
+
+@app.post('/deleteSongFromPlaylist')
+@jwt_required()
+def deleteSongFromPlaylist():
+    current_user = get_jwt_identity()
+    logging.info(f"fetch playlist from {current_user}")
+    response = (
+            ClientAPI.table("Users")
+            .select("Playlist")
+            .eq("identifiant", current_user)
+            .execute()
+    )
+    json = response.data[0]["Playlist"]
+    logging.info(f"Playlists: {json}")
+    
+    data = request.get_json()
+    logging.info(f"data: {data}")
+    music_id = data["music_id"]
+    playlist = data["playlist"]
+
+    response = (
+            ClientAPI.table("StatMusic3")
+            .select("*")
+            .or_(f"id_yt.eq.{music_id},id_clip.eq.{music_id}")
+            .execute()
+    )
+    json_music = response.data[0]
+
+    try:
+        json[playlist].remove(json_music['id_yt'])
+    except:
+        print("fail to remove")
+
+    try:
+        json[playlist].remove(music_id['id_clip'])
+    except:
+        print("fail to remove")
+    
+    response = (
+            ClientAPI.table("Users")
+            .update({"Playlist": json})
+            .eq("identifiant", current_user)
+            .execute()
+    )
+    print(response.data)
+    return 'OK'
+
 
 def getVideosIdFromPlaylistYT(playlist_id):
     video_ids = []
