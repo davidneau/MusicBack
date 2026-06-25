@@ -83,11 +83,8 @@ def signIn():
     password_bytes = password.encode("utf-8")
     hashed_password = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
 
-    response = (
-        ClientAPI.table("Users")
-        .insert({"identifiant" : identifiant, "password": hashed_password.decode("utf-8")})
-        .execute()
-    )
+    
+    
     return "OK", 200
 
 @app.route('/getSimilarTrack/<string:search>')
