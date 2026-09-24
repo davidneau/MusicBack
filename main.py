@@ -3,7 +3,7 @@ from fetchData import getSimilarTrack
 from flask_cors import CORS
 import json
 import threading
-import psycopg2
+#import psycopg2
 import os
 from methods.tracks import getTrackSearchDeezer, listenMusica, loadHistoriqueRoute, loadReplayRoute
 from googleapiclient.discovery import build
@@ -59,6 +59,10 @@ def login():
             token = create_access_token(identity=identifiant)
             return jsonify(access_token=token), 200
     return jsonify(msg="Invalid credentials"), 401
+
+@app.get('/tests')
+def test():
+    return 'Test OK', 200
 
 @app.get('/profile')
 @jwt_required()
@@ -218,4 +222,5 @@ def insertDataVideoIntoDBB(videos):
 
 # Lancer l'application
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
+
