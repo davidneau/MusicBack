@@ -82,9 +82,6 @@ def signIn():
     password = data.get('password')
     password_bytes = password.encode("utf-8")
     hashed_password = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
-
-    
-    
     return "OK", 200
 
 @app.route('/getSimilarTrack/<string:search>')
@@ -521,10 +518,10 @@ def searchYT(searchStr, first=False):
 def search1Music(searchStr):
     logging.info(f"Recherche YT: {searchStr}")
     try:
-        results = yt.search(searchStr, filter="songs", limit=10)
+        results = yt.search(searchStr, limit=10)
     except:
         time.sleep(2)
-        results = yt.search(searchStr, filter="songs", limit=10)
+        results = yt.search(searchStr, limit=10)
         
     try:
         resultsClip = yt.search(searchStr + " Clip Video", filter="videos", limit=10)
@@ -695,6 +692,7 @@ def prepaMusic(music, YTmusique={}, withYTID=True):
             video_id = YTmusique["id_yt"]
         else:
             video_id = music["id_yt"]
+        video_id = "AxLqdGme5nc"
         videoDict["url"] = f"https://www.youtube.com/watch?v={video_id}"
         videoDict["id"] = video_id
 
@@ -706,6 +704,7 @@ def prepaMusic(music, YTmusique={}, withYTID=True):
     videoDict["title"] = music["Title"]
     videoDict["artist"] = music["Artist"]
     videoDict["album"] = music["Album"]
+    print(videoDict)
     return videoDict
 
 

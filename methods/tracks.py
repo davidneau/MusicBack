@@ -1,7 +1,5 @@
 import requests
 import re
-import logging
-import unicodedata
 import re
 
 """ API utilisé = lastFM """
